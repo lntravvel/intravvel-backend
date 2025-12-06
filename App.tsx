@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { supabase } from './lib/supabaseClient';
 import Login from './pages/Login';
 import Services from './pages/Services';
 import ContentEditor from './pages/ContentEditor';
@@ -23,8 +24,36 @@ const Layout = ({ children }: LayoutProps) => {
 };
 
 const ProtectedRoute = ({ children }: LayoutProps) => {
-  const token = localStorage.getItem('token');
-  if (!token) return <Navigate to="/login" replace />;
+  const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+
+  useEffect(() => {
+    // Check authentication status
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthenticated(!!session);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
   return <Layout>{children}</Layout>;
 };
 
@@ -33,13 +62,13 @@ const App: React.FC = () => {
     <HashRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        
+
         <Route path="/" element={<ProtectedRoute><Services /></ProtectedRoute>} />
         <Route path="/services" element={<ProtectedRoute><Services /></ProtectedRoute>} />
         <Route path="/content" element={<ProtectedRoute><ContentEditor /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
         <Route path="/ai" element={<ProtectedRoute><AIGenerator /></ProtectedRoute>} />
-        
+
       </Routes>
     </HashRouter>
   );
